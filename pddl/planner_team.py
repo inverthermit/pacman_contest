@@ -15,6 +15,7 @@ import keyboardAgents
 import game
 from util import nearestPoint
 import os
+import sys
 
 
 #################
@@ -53,6 +54,13 @@ class ReflexCaptureAgent(CaptureAgent):
     """
     FILL THE CODE TO GENERATE PDDL OBJECTS
     """
+    gState = self.getCurrentObservation()
+    walls = gState.getWalls()
+    objs = walls.asList(False)
+    for obj in objs:
+        result+= ' n_' + str(obj)
+    # print(result)
+    # sys.exit()
     return result
 
   def createPDDLfluents(self):
@@ -61,7 +69,12 @@ class ReflexCaptureAgent(CaptureAgent):
     """
     FILL THE CODE TO GENERATE PDDL PREDICATES
     """
-
+    # TODO: has_food, is_home, connected, at, is_opponent_pacman, is_opponent_ghost
+    # gState = self.getCurrentObservation()
+    # foods = gState.getFood()
+    # objs = foods.asList(True)
+    # for obj in objs:
+    #     result+= ' n_' + str(obj)
 
     return result
 

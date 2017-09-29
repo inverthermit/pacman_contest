@@ -1,19 +1,5 @@
-# baselineTeam.py
-# ---------------
-# Licensing Information:  You are free to use or extend these projects for
-# educational purposes provided that (1) you do not distribute or publish
-# solutions, (2) you retain this notice, and (3) you provide clear
-# attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
-#
-# Attribution Information: The Pacman AI projects were developed at UC Berkeley.
-# The core projects and autograders were primarily created by John DeNero
-# (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
-# Student side autograding was added by Brad Miller, Nick Hay, and
-# Pieter Abbeel (pabbeel@cs.berkeley.edu).
-
-
-# baselineTeam.py
-# ---------------
+# baselineAgents.py
+# -----------------
 # Licensing Information: Please do not distribute or publish solutions to this
 # project. You are free to use and extend these projects for educational
 # purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
@@ -21,15 +7,21 @@
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
 
 from captureAgents import CaptureAgent
+from captureAgents import AgentFactory
 import distanceCalculator
-import random, time, util, sys
+import random, time, util
 from game import Directions
+import keyboardAgents
 import game
 from util import nearestPoint
+import os
+import sys
+
 
 #################
 # Team creation #
 #################
+
 
 def createTeam(firstIndex, secondIndex, isRed,
                first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
@@ -49,47 +41,135 @@ def createTeam(firstIndex, secondIndex, isRed,
   """
   return [eval(first)(firstIndex), eval(second)(secondIndex)]
 
-##########
-# Agents #
-##########
+
 
 class ReflexCaptureAgent(CaptureAgent):
+  def __init__( self, index, timeForComputing = .1 ):
+    CaptureAgent.__init__( self, index, timeForComputing)
+    self.visibleAgents = []
+
+  def createPDDLobjects(self):
+    result = '';
+
+    """
+    FILL THE CODE TO GENERATE PDDL OBJECTS
+    """
+    gState = self.getCurrentObservation()
+    walls = gState.getWalls()
+    objs = walls.asList(False)
+    for obj in objs:
+        result+= ' n_' + str(obj)
+    # print(result)
+    # sys.exit()
+    return result
+
+  def createPDDLfluents(self):
+    result = ''
+
+    """
+    FILL THE CODE TO GENERATE PDDL PREDICATES
+    """
+    # TODO: has_food, is_home, connected, at, is_opponent_pacman, is_opponent_ghost
+    gState = self.getCurrentObservation()
+    foods = self.getFood(gState)
+    objs = foods.asList(True)
+    for obj in objs:
+        result+= ' n_' + str(obj)
+
+    
+    print(result)
+    sys.exit()
+
+    return result
+
+  def createPDDLgoal( self ):
+    result = ''
+
+    """
+    FILL THE CODE TO GENERATE PDDL GOAL
+    """
+    return result
+
+  def generatePDDLproblem(self):
+	"""convierte un escenario en un problema de strips"""
+        cd = os.path.dirname(os.path.abspath(__file__))
+	f = open("%s/problem%d.pddl"%(cd,self.index),"w");
+	lines = list();
+	lines.append("(define (problem strips-log-x-1)\n");
+   	lines.append("   (:domain pacman-strips)\n");
+   	lines.append("   (:objects \n");
+	lines.append( self.createPDDLobjects() + "\n");
+	lines.append(")\n");
+	lines.append("   (:init \n");
+	lines.append("   ;primero objetos \n");
+	lines.append( self.createPDDLfluents() + "\n");
+
+        lines.append(")\n");
+        lines.append("   (:goal \n");
+        lines.append("	 ( and  \n");
+        lines.append( self.createPDDLgoal() + "\n");
+        lines.append("   ))\n");
+        lines.append(")\n");
+
+	f.writelines(lines);
+	f.close();
+
+
+  def runPlanner( self ):
+	cd = os.path.dirname(os.path.abspath(__file__))
+	os.system("%s/ff  -o %s/domain.pddl -f %s/problem%d.pddl > %s/solution%d.txt"
+                %(cd,cd,cd,self.index,cd,self.index) );
+
+  def parseSolution( self ):
+    cd = os.path.dirname(os.path.abspath(__file__))
+    f = open("%s/solution%d.txt"%(cd,self.index),"r");
+    lines = f.readlines();
+    f.close();
+
+    for line in lines:
+      pos_exec = line.find("0: "); #First action in solution file
+      if pos_exec != -1:
+        command = line[pos_exec:];
+        command_splitted = command.split(' ')
+
+        x = int(command_splitted[3].split('_')[1])
+        y = int(command_splitted[3].split('_')[2])
+
+        return (x,y)
+
+      #
+      # Empty Plan, Use STOP action, return current Position
+      #
+      if line.find("ff: goal can be simplified to TRUE. The empty plan solves it") != -1:
+        return  self.getCurrentObservation().getAgentPosition( self.index )
+
   """
   A base class for reflex agents that chooses score-maximizing actions
   """
-
-  def registerInitialState(self, gameState):
-    self.start = gameState.getAgentPosition(self.index)
-    CaptureAgent.registerInitialState(self, gameState)
-
   def chooseAction(self, gameState):
-    """
-    Picks among the actions with the highest Q(s,a).
-    """
     actions = gameState.getLegalActions(self.index)
 
-    # You can profile your evaluation time by uncommenting these lines
-    # start = time.time()
-    values = [self.evaluate(gameState, a) for a in actions]
-    # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+    bestAction = 'Stop'
 
-    maxValue = max(values)
-    bestActions = [a for a, v in zip(actions, values) if v == maxValue]
 
-    foodLeft = len(self.getFood(gameState).asList())
+    """
+    RUN PLANNER
+    """
+    self.generatePDDLproblem()
+    self.runPlanner()
+    (newx,newy) = self.parseSolution()
 
-    if foodLeft <= 2:
-      bestDist = 9999
-      for action in actions:
-        successor = self.getSuccessor(gameState, action)
-        pos2 = successor.getAgentPosition(self.index)
-        dist = self.getMazeDistance(self.start,pos2)
-        if dist < bestDist:
-          bestAction = action
-          bestDist = dist
-      return bestAction
+    for a in actions:
+      succ = self.getSuccessor(gameState, a)
 
-    return random.choice(bestActions)
+      """
+      SELECT FIRST ACTION OF THE PLAN
+      """
+      if succ.getAgentPosition( self.index ) == (newx, newy):
+        bestAction = a
+        print self.index, bestAction, self.getCurrentObservation().getAgentPosition( self.index ) ,(newx,newy)
+
+    return bestAction
 
   def getSuccessor(self, gameState, action):
     """
@@ -136,15 +216,15 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
   def getFeatures(self, gameState, action):
     features = util.Counter()
     successor = self.getSuccessor(gameState, action)
-    foodList = self.getFood(successor).asList()
-    features['successorScore'] = -len(foodList)#self.getScore(successor)
+    features['successorScore'] = self.getScore(successor)
 
     # Compute distance to the nearest food
-
+    foodList = self.getFood(successor).asList()
     if len(foodList) > 0: # This should always be True,  but better safe than sorry
       myPos = successor.getAgentState(self.index).getPosition()
       minDistance = min([self.getMazeDistance(myPos, food) for food in foodList])
       features['distanceToFood'] = minDistance
+      print action, features, successor
     return features
 
   def getWeights(self, gameState, action):
@@ -185,3 +265,11 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
   def getWeights(self, gameState, action):
     return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
+
+  """
+  def generatePDDLproblem(self):
+
+
+    YOU CAN OVERWRITE THE PDDL PROBLEM GENERATOR, AND HAVE ONE SPECIFIC FOR
+    DEFENSIVE AND ONE SPECIFIC FOR OFFENSIVE
+  """
