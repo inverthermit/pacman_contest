@@ -12,7 +12,7 @@ import copy
 # Team creation #
 #################
 
-def createTeam(firstIndex, secondIndex, isRed,
+def createTeam(firstIndex, secondIndex, isRed,#DefensiveReflexAgent OffensiveReflexAgent
                first = 'OffensiveReflexAgent', second = 'DefensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
@@ -53,40 +53,19 @@ class ReflexCaptureAgent(CaptureAgent):
   def getBoundaries(self, gameState):
     return []
 
-  # def chooseAction(self, gameState):
-  #   """
-  #   Picks among the actions with the highest Q(s,a).
-  #   """
-  #   actions = gameState.getLegalActions(self.index)
-  #
-  #   # You can profile your evaluation time by uncommenting these lines
-  #   # start = time.time()
-  #   values = [self.evaluate(gameState, a) for a in actions]
-  #   # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
-  #
-  #   maxValue = max(values)
-  #   bestActions = [a for a, v in zip(actions, values) if v == maxValue]
-  #
-  #   foodLeft = len(self.getFood(gameState).asList())
-  #
-  #   if foodLeft <= 2:
-  #     bestDist = 9999
-  #     for action in actions:
-  #       successor = self.getSuccessor(gameState, action)
-  #       pos2 = successor.getAgentPosition(self.index)
-  #       dist = self.getMazeDistance(self.start,pos2)
-  #       if dist < bestDist:
-  #         bestAction = action
-  #         bestDist = dist
-  #     return bestAction
-  #
-  #   return random.choice(bestActions)
 
   def getSuccessors(self, position, isChased):
       # TODO: Add the deadend configuration
       blockers = copy.copy(self.walls)
       if(isChased):
           blockers.extend(self.deadEndList)
+      curOb = self.getCurrentObservation();
+      if curOb.getAgentState(self.index).isPacman:
+          enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
+          defenders = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
+          if len(defenders) > 0:
+              defendersPos = [i.getPosition() for i in defenders]
+              blockers.extend(defendersPos)
       successors = []
       for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
           x,y = position
@@ -120,140 +99,118 @@ class ReflexCaptureAgent(CaptureAgent):
                     fn = len(path + [element[1]]) + heuristic(element[0], point)
                     collection.push((element[0], path+[element[1]]), fn)
         if len(goalList)>0 and goalList[0]!=self.start:
-            return self.heuristicSearch(position, [[self.start]])
+            return self.heuristicSearch([self.start])
         # if len(goalList)==0:
         #     return 'North'
 
         return 'Stop'
 
 
-  def getNClosestFood(self, gameState):
+  def getNiceClosestFood(self, gameState, defendFood=False, num=-1):
       position = self.getCurrentObservation().getAgentPosition(self.index)
-      foodList = self.getFood(gameState).asList()
-
-
-
-  def attackRoaming(self, gameState):
-
-      currentState = self.getCurrentObservation()
-      cur_position = currentState.getAgentPosition(self.index)
-      foodList = self.getFood(gameState).asList()
-      dist = 999999
-
-      foodDistanceList = []
-      for food in foodList:
-          foodDistanceList.append(self.getMazeDistance(cur_position,food))
-
-      shortestFoodList =  sorted(foodDistanceList)
-      meantEatList = []
-
-
-      for i in range(0,len(shortestFoodList)):
-          for j in foodList:
-              if self.getMazeDistance(cur_position, j) == shortestFoodList[i]:
-                  meantEatList.append(j)
-                  foodList.remove(j)
-
-      firstFive = []
-      for i in range(0, len(meantEatList)/4):
-          firstFive.append(meantEatList[i])
-
-      return firstFive
-  def defendRoaming(self, gameState):
-
-
-      currentState = self.getCurrentObservation()
-      cur_position = currentState.getAgentPosition(self.index)
-      # get invaders position
-      enemies = [currentState.getAgentState(i) for i in self.getOpponents(currentState)]
-      invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
-
-      if len(invaders) > 0:
-          dists = [self.getMazeDistance(cur_position, a.getPosition()) for a in invaders]
-          for i in range(0, len(invaders)):
-              if self.getMazeDistance(cur_position, invaders[i].getPosition()) == min(dists):
-                  return [invaders[i].getPosition()]
-
-      else:
+      if defendFood:
           foodList = self.getFoodYouAreDefending(gameState).asList()
-          foodListX = []
-          PrimDefandPosition = []
-          # defPosition = random.choice(foodList)
+      else:
+          curOb = self.getCurrentObservation();
+          position = curOb.getAgentPosition(self.index)
+          enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
+          enemiesAtHome = [ele for ele in enemies if ele.isPacman and ele.getPosition() != None]
+          if len(enemiesAtHome) > 0:
+              dists = [self.getMazeDistance(position, ele.getPosition()) for ele in enemiesAtHome]
+              for i in range(0, len(enemiesAtHome)):
+                  if self.getMazeDistance(position, enemiesAtHome[i].getPosition()) == min(dists):
+                      return [enemiesAtHome[i].getPosition()]
+          foodList = self.getFood(gameState).asList()
+      collection = util.PriorityQueue()
+      for food in foodList:
+          dis = self.getMazeDistance(position, food)
+          collection.push((food), dis)
+      result = []
+      if(num<0):
+          #for i in range(collection.count/4):
+          for i in range(collection.count):
+              result.append(collection.pop())
+      else:
+          if(collection.count<num):
+              num = collection.count
+          for i in range(num):
+              result.append(collection.pop())
+    #   print(len(result))
+      return result
 
-          for x in range(0, len(foodList)): foodListX.append(foodList[x][0])
+  def defenderBestPosition(self, gameState):
+      curOb = self.getCurrentObservation();
+      position = curOb.getAgentPosition(self.index)
+      enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
+      enemiesAtHome = [ele for ele in enemies if ele.isPacman and ele.getPosition() != None]
+      if len(enemiesAtHome) > 0:
+          dists = [self.getMazeDistance(position, ele.getPosition()) for ele in enemiesAtHome]
+          for i in range(0, len(enemiesAtHome)):
+              if self.getMazeDistance(position, enemiesAtHome[i].getPosition()) == min(dists):
+                  return [enemiesAtHome[i].getPosition()]
+      else:
+          defFoodList = self.getNiceClosestFood(gameState, defendFood=True, num=3)
+          ranPoint = random.choice(defFoodList)
+          if position ==  ranPoint:
+              defFoodList.remove(ranPoint)
+              ranPoint = random.choice(defFoodList)
+          return [ranPoint]
 
-          sortedList = sorted(foodListX)
-
-          smallestX = sortedList[0]
-          smallestX2 = sortedList[1]
-          smallestX3 = sortedList[3]
-
-          for i in range(0,len(foodList)):
-
-              if foodList[i][0] == smallestX or foodList[i][0] == smallestX2 or  foodList[i][0] == smallestX3:
-                  PrimDefandPosition.append(foodList[i])
-
-
-
-          randomPosition = random.choice(PrimDefandPosition)
-          if cur_position ==  randomPosition:
-              PrimDefandPosition.remove(randomPosition)
-              randomPosition = random.choice(PrimDefandPosition)
-          return [randomPosition]
 
   def getGoals(self, gameState, isDefender):
 
       if not isDefender:
-          return self.attackRoaming(gameState)
+          return self.getNiceClosestFood(gameState)
       else:
-          return self.attackRoaming(gameState)
+          return self.defenderBestPosition(gameState)#defenderBestPosition
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
-    chaseByDefender = False
+    isChased = False
 
     def chooseAction(self, gameState):
 
-        foodAte = self.foodNum - len(self.getFood(gameState).asList())
-        # print foodAte
-        selfCurState = self.getCurrentObservation().getAgentState(self.index)
-        curState = self.getCurrentObservation()
+        foodList = self.getFood(gameState).asList()
+        foodAte = self.foodNum - len(foodList)
+        print foodAte
+        curOb = self.getCurrentObservation()
+        selfState = curOb.getAgentState(self.index)
 
-        #left 2 food and go home
-        if len(self.getFood(gameState).asList()) == 2:
+        #Go back to home
+        if len(foodList) == 2:
             return self.heuristicSearch([self.start])
 
 
-        #move to another position
-        if self.chaseByDefender == True and not selfCurState.isPacman:
-            self.chaseByDefender = False
+        #already escape
+        if self.isChased == True and not selfState.isPacman:
+            self.isChased = False
             return self.heuristicSearch([self.start])
 
 
 
         #avoid defenders
-        if selfCurState.isPacman:
+        if selfState.isPacman:
             # get defenders position
-            enemies = [curState.getAgentState(i) for i in self.getOpponents(curState)]
-            defenders = [a for a in enemies if not a.isPacman and a.getPosition() != None and a.scaredTimer <= 0]
-
-            if len(defenders) > 0:
-                defendersPos = [i.getPosition() for i in defenders]
+            enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
+            enemiesAtHome = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
+            if len(enemiesAtHome) > 0:
+                defendersPos = [i.getPosition() for i in enemiesAtHome]
 
                 for pos in defendersPos:
-                    distance = self.getMazeDistance(pos,selfCurState.getPosition()) - 2
+                    distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
                     if distance <= 2:
                         self.chaseByDefender = True
                         return self.heuristicSearch([self.start])
 
+        # create a function for better go home
+        # if foodAte>= 5 and foodAte!=0 and selfState.isPacman:
+        #     print('Go home!!!')
+        #     return self.heuristicSearch([self.start])
 
-        if foodAte == 5 and selfCurState.isPacman:
-            return self.heuristicSearch([self.start])
-
-        if not selfCurState.isPacman:
-            self.totalFoodNum = len(self.getFood(gameState).asList())
+        if not selfState.isPacman:
+            self.foodNum = len(self.getFood(gameState).asList())
 
         return self.heuristicSearch(self.getGoals(gameState,False))
-  # isBeingChased = False
+
 
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
