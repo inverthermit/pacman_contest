@@ -208,16 +208,16 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                         self.chaseByDefender = True
                         return self.heuristicSearch([self.start])
 
-        # create a function for better go home
-        if foodAte>= 5 and foodAte!=0 and selfState.isPacman:
-            print('Go home!!!')
-            # if food is near, eat food
-            closestFood = self.getNiceClosestFood(gameState, defendFood=False, num=1)
-            distance = self.getMazeDistance(closestFood[0],selfState.getPosition())
-            # print('distance to the closest food:'+str(distance))
-            if(distance == 1):
-                return self.heuristicSearch(closestFood)
-            return self.heuristicSearch([self.start])
+        # # create a function for better go home
+        # if foodAte>= 5 and foodAte!=0 and selfState.isPacman:
+        #     print('Go home!!!')
+        #     # if food is near, eat food
+        #     closestFood = self.getNiceClosestFood(gameState, defendFood=False, num=1)
+        #     distance = self.getMazeDistance(closestFood[0],selfState.getPosition())
+        #     # print('distance to the closest food:'+str(distance))
+        #     if(distance == 1):
+        #         return self.heuristicSearch(closestFood)
+        #     return self.heuristicSearch([self.start])
 
         if not selfState.isPacman:
             self.foodNum = len(self.getFood(gameState).asList())
