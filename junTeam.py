@@ -13,7 +13,7 @@ import copy
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,#DefensiveReflexAgent OffensiveReflexAgent
-               first = 'OffensiveReflexAgent', second = 'OffensiveReflexAgent2'):
+               first = 'OffensiveReflexAgent', second = 'OffensiveReflexAgent'):
   """
   This function should return a list of two agents that will form the
   team, initialized using firstIndex and secondIndex as their agent
@@ -88,7 +88,6 @@ class ReflexCaptureAgent(CaptureAgent):
     # print(grid.height)
     return selfBorder,enermyBorder
 
-
   def getSuccessors(self, position, isChased):
       # TODO: Add the deadend configuration
       blockers = copy.copy(self.walls)
@@ -106,7 +105,23 @@ class ReflexCaptureAgent(CaptureAgent):
           defenders = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
           if len(defenders) > 0:
               defendersPos = [i.getPosition() for i in defenders]
-              blockers.extend(defendersPos)
+              expandList = copy.copy(defendersPos)
+              for element in defendersPos:
+                  eBlock = (element[0]-1, element[1])
+                  wBlock = (element[0]+1, element[1])
+                  sBlock = (element[0], element[1]-1)
+                  nBlock = (element[0], element[1]+1)
+                  neBlock = (element[0]+1, element[1]+1)
+                  nwBlock = (element[0]-1, element[1]-1)
+                  seBlock = (element[0]+1, element[1]-1)
+                  swBlock = (element[0]-1, element[1]+1)
+                  fourDirectionList = [eBlock,wBlock,sBlock,nBlock,neBlock,nwBlock,seBlock,swBlock]
+                  for b in fourDirectionList:
+                      if b not in self.selfBorder:
+                          expandList.append(b)
+
+
+              blockers.extend(expandList)
 
       successors = []
       for action in [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]:
@@ -146,7 +161,6 @@ class ReflexCaptureAgent(CaptureAgent):
         #     return 'North'
 
         return 'Stop'
-
 
   def getNiceClosestFood(self, gameState, defendFood=False, num=-1):
       position = self.getCurrentObservation().getAgentPosition(self.index)
@@ -207,6 +221,20 @@ class ReflexCaptureAgent(CaptureAgent):
       else:
           return self.defenderBestPosition(gameState)#defenderBestPosition
 
+
+  def getClosestBorder(self, gameState):
+      position = self.getCurrentObservation().getAgentPosition(self.index)
+      collection = util.PriorityQueue()
+      for border in self.selfBorder:
+          dis = self.getMazeDistance(position, border)
+          collection.push((border), dis)
+      if collection.count==0:
+          return [self.start]
+      else:
+          return [collection.pop()]
+
+
+
 class OffensiveReflexAgent(ReflexCaptureAgent):
 
 
@@ -214,6 +242,12 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     def chooseAction(self, gameState):
         curOb = self.getCurrentObservation()
         selfState = curOb.getAgentState(self.index)
+        selfPos = curOb.getAgentPosition(self.index)
+        teammatePos = curOb.getAgentPosition(self.teammateIndex)
+        # initializing with random border
+        # if selfPos == self.start:
+        #     ranBorder = random.choice(self.selfBorder)
+        #     self.forceGoPoint = random.choice([None, ranBorder])
         # force go to a point
         if(self.forceGoPoint != None):
             print('Force go to*********'+str(self.forceGoPoint))
@@ -229,94 +263,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         # there is at least one very close ghost, force go somewhere(Game Theory).
         # Use random first. ran = random.choice([0, len(selfBorder)-1])
         # print(self.getTeam(gameState))
-        selfPos = curOb.getAgentPosition(self.index)
-        teammatePos = curOb.getAgentPosition(self.teammateIndex)
-        if(selfPos in self.selfBorder and teammatePos in self.selfBorder):#selfPos in self.selfBorder and teammatePos in self.selfBorder
-            dis = self.getMazeDistance(selfPos,teammatePos)
-            if dis <= 3:
-                enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
-                enemiesAtHome = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
-                if len(enemiesAtHome) > 0:
-                    defendersPos = [i.getPosition() for i in enemiesAtHome]
-                    for pos in defendersPos:
-                        distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
-                        if distance <= 2:
-                            print('********into set forceGoPoint')
-                            self.forceGoPoint = random.choice(self.selfBorder)
-                            return self.heuristicSearch([self.forceGoPoint])
 
-
-
-        foodList = self.getFood(gameState).asList()
-        foodAte = self.foodNum - len(foodList)
-        print foodAte
-
-
-        #Go back to home
-        if len(foodList) == 2:
-            return self.heuristicSearch([self.start])
-
-        #already escape
-        if self.isChased == True and not selfState.isPacman:
-            self.isChased = False
-            return self.heuristicSearch([self.start])
-
-
-
-        #avoid defenders
-        if selfState.isPacman:
-            # get defenders position
-            enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
-            enemiesAtHome = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
-            if len(enemiesAtHome) > 0:
-                defendersPos = [i.getPosition() for i in enemiesAtHome]
-
-                for pos in defendersPos:
-                    distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
-                    if distance <= 2:
-                        self.chaseByDefender = True
-                        return self.heuristicSearch([self.start])
-
-        # # create a function for better go home
-        # if foodAte>= 5 and foodAte!=0 and selfState.isPacman:
-        #     print('Go home!!!')
-        #     # if food is near, eat food
-        #     closestFood = self.getNiceClosestFood(gameState, defendFood=False, num=1)
-        #     distance = self.getMazeDistance(closestFood[0],selfState.getPosition())
-        #     # print('distance to the closest food:'+str(distance))
-        #     if(distance == 1):
-        #         return self.heuristicSearch(closestFood)
-        #     return self.heuristicSearch([self.start])
-
-        if not selfState.isPacman:
-            self.foodNum = len(self.getFood(gameState).asList())
-
-        return self.heuristicSearch(self.getGoals(gameState,False))
-
-class OffensiveReflexAgent2(ReflexCaptureAgent):
-
-
-
-    def chooseAction(self, gameState):
-        curOb = self.getCurrentObservation()
-        selfState = curOb.getAgentState(self.index)
-        # force go to a point
-        if(self.forceGoPoint != None):
-            print('Force go to*********'+str(self.forceGoPoint))
-            position = curOb.getAgentPosition(self.index)
-            if(position == self.forceGoPoint):
-                self.forceGoPoint = None
-            else:
-                return self.heuristicSearch([self.forceGoPoint])
-
-
-        # Recognize the state that it is stuck
-        # if two of my ghosts are at border and are too close and
-        # there is at least one very close ghost, force go somewhere(Game Theory).
-        # Use random first. ran = random.choice([0, len(selfBorder)-1])
-        # print(self.getTeam(gameState))
-        selfPos = curOb.getAgentPosition(self.index)
-        teammatePos = curOb.getAgentPosition(self.teammateIndex)
         if(True):#selfPos in self.selfBorder and teammatePos in self.selfBorder
             dis = self.getMazeDistance(selfPos,teammatePos)
             if dis <= 3:
@@ -327,7 +274,7 @@ class OffensiveReflexAgent2(ReflexCaptureAgent):
                     for pos in defendersPos:
                         distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
                         if distance <= 2:
-                            print('********into set forceGoPoint')
+                            # print('********into set forceGoPoint')
                             self.forceGoPoint = random.choice(self.selfBorder)
                             return self.heuristicSearch([self.forceGoPoint])
 
@@ -339,13 +286,13 @@ class OffensiveReflexAgent2(ReflexCaptureAgent):
 
 
         #Go back to home
-        if len(foodList) == 2:
-            return self.heuristicSearch([self.start])
+        if len(foodList) <= 2:
+            return self.heuristicSearch(self.getClosestBorder(gameState))
 
         #already escape
         if self.isChased == True and not selfState.isPacman:
             self.isChased = False
-            return self.heuristicSearch([self.start])
+            return self.heuristicSearch(self.getClosestBorder(gameState))
 
 
 
@@ -360,8 +307,8 @@ class OffensiveReflexAgent2(ReflexCaptureAgent):
                 for pos in defendersPos:
                     distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
                     if distance <= 2:
-                        self.chaseByDefender = True
-                        return self.heuristicSearch([self.start])
+                        self.isChased = True
+                        return self.heuristicSearch(self.getClosestBorder(gameState))
 
         # # create a function for better go home
         # if foodAte>= 5 and foodAte!=0 and selfState.isPacman:
@@ -372,13 +319,12 @@ class OffensiveReflexAgent2(ReflexCaptureAgent):
         #     # print('distance to the closest food:'+str(distance))
         #     if(distance == 1):
         #         return self.heuristicSearch(closestFood)
-        #     return self.heuristicSearch([self.start])
+        #     return self.heuristicSearch(self.getClosestBorder(gameState))
 
         if not selfState.isPacman:
             self.foodNum = len(self.getFood(gameState).asList())
 
         return self.heuristicSearch(self.getGoals(gameState,False))
-
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
   def chooseAction(self, gameState):
