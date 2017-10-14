@@ -162,8 +162,10 @@ class ReflexCaptureAgent(CaptureAgent):
 
         return 'Stop'
 
-  def getNiceClosestFood(self, gameState, defendFood=False, num=-1):
+  def getNiceClosestFood(self, gameState, defendFood=False, num=-1, customPosition = None):
       position = self.getCurrentObservation().getAgentPosition(self.index)
+      if customPosition != None:
+          position = customPosition
       if defendFood:
           foodList = self.getFoodYouAreDefending(gameState).asList()
       else:
@@ -233,6 +235,66 @@ class ReflexCaptureAgent(CaptureAgent):
       else:
           return [collection.pop()]
 
+  def gameTheoryCalculation(self, gameState):
+      curOb = self.getCurrentObservation()
+      enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
+      defenders = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
+      matrix = []
+      if len(defenders) > 0:
+          defendersPos = [i.getPosition() for i in defenders]
+          for i, selfBorderPoint in enumerate(self.selfBorder):
+              row = []
+              for j, enemyBoderPoint in enumerate(self.enermyBorder):
+                  selfBorderClosestFood = self.getNiceClosestFood(gameState,defendFood=False, num=1,customPosition = selfBorderPoint)[0]
+                  selfValue = self.getMazeDistance(selfBorderClosestFood, selfBorderPoint)
+                  enemyValue = self.getMazeDistance(enemyBoderPoint, selfBorderPoint)
+                  row.append( (-selfValue + enemyValue,-enemyValue) )
+              matrix.append(row)
+      maxIndex = -1
+      maxValue = -99999
+      for i,value in enumerate(matrix):
+          rowSum = 0
+          for rowVal in matrix[i]:
+              rowSum = rowSum + rowVal[0]
+          if(rowSum > maxValue):
+              maxValue = rowSum
+              maxIndex = i
+      if(maxIndex == -1):
+          return None
+      return self.selfBorder[maxIndex]
+
+
+  def gameTheoryCalCurrentDefender(self, gameState):
+      print('into gameTheoryCalCurrentDefender')
+      curOb = self.getCurrentObservation()
+      enemies = [curOb.getAgentState(i) for i in self.getOpponents(curOb)]
+      defenders = [ele for ele in enemies if not ele.isPacman and ele.getPosition() != None and ele.scaredTimer <= 0]
+      row = []
+      defendersPos = [i.getPosition() for i in defenders]
+      distribution = util.Counter()
+      for i, selfBorderPoint in enumerate(self.selfBorder):
+          selfBorderClosestFood = self.getNiceClosestFood(gameState,defendFood=False, num=1,customPosition = selfBorderPoint)[0]
+          selfValue = self.getMazeDistance(selfBorderClosestFood, selfBorderPoint)
+          rowValue = 0
+          if len(defenders) > 0:
+              enemyValueList = [self.getMazeDistance(ele,selfBorderPoint) for ele in defendersPos]
+              print('enemyValueList:')
+              print(enemyValueList)
+              rowValue = -selfValue + min(enemyValueList)
+          else:
+              rowValue = -selfValue
+          row.append(rowValue)
+          distribution[selfBorderPoint] = rowValue
+      self.displayDistributionsOverPositions(distribution)
+      print(row)
+      maxIndex = row.index(max(row))
+      return self.selfBorder[maxIndex]
+
+
+
+
+
+
 
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
@@ -275,7 +337,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                         distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
                         if distance <= 2:
                             # print('********into set forceGoPoint')
-                            self.forceGoPoint = random.choice(self.selfBorder)
+                            # self.forceGoPoint = random.choice(self.selfBorder)
+                            self.forceGoPoint = self.gameTheoryCalCurrentDefender(gameState)
                             return self.heuristicSearch([self.forceGoPoint])
 
 
@@ -283,6 +346,17 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         foodList = self.getFood(gameState).asList()
         foodAte = self.foodNum - len(foodList)
         print foodAte
+
+        # if capsule is near, eat capsule
+        capsules = self.getCapsules(gameState)
+        for capsule in capsules:
+            # print(capsule)
+            distance = self.getMazeDistance(capsule,selfState.getPosition())
+            if(distance <= 3):
+                return self.heuristicSearch([capsule])
+            # return self.heuristicSearch(self.getClosestBorder(gameState))
+
+
 
 
         #Go back to home
@@ -311,7 +385,9 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                         return self.heuristicSearch(self.getClosestBorder(gameState))
 
         # # create a function for better go home
-        # if foodAte>= 5 and foodAte!=0 and selfState.isPacman:
+        # border = self.getClosestBorder(gameState)
+        # distance = self.getMazeDistance(border[0],selfState.getPosition())
+        # if distance>0 and (foodAte*2)/distance >= 1 and foodAte!=0 and selfState.isPacman:
         #     print('Go home!!!')
         #     # if food is near, eat food
         #     closestFood = self.getNiceClosestFood(gameState, defendFood=False, num=1)
@@ -319,7 +395,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         #     # print('distance to the closest food:'+str(distance))
         #     if(distance == 1):
         #         return self.heuristicSearch(closestFood)
-        #     return self.heuristicSearch(self.getClosestBorder(gameState))
+        #     return self.heuristicSearch(border)
+        # getCapsules
 
         if not selfState.isPacman:
             self.foodNum = len(self.getFood(gameState).asList())
