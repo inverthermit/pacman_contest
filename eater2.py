@@ -245,11 +245,8 @@ class ReflexCaptureAgent(CaptureAgent):
           for i, selfBorderPoint in enumerate(self.selfBorder):
               row = []
               for j, enemyBoderPoint in enumerate(self.enermyBorder):
-                  fistClosestFood = self.getNiceClosestFood(gameState,defendFood=False, num=1,customPosition = selfBorderPoint)
-                  selfValue = 0
-                  if(len(fistClosestFood)>0):
-                      selfBorderClosestFood = self.getNiceClosestFood(gameState,defendFood=False, num=1,customPosition = selfBorderPoint)[0]
-                      selfValue = self.getMazeDistance(selfBorderClosestFood, selfBorderPoint)
+                  selfBorderClosestFood = self.getNiceClosestFood(gameState,defendFood=False, num=1,customPosition = selfBorderPoint)[0]
+                  selfValue = self.getMazeDistance(selfBorderClosestFood, selfBorderPoint)
                   enemyValue = self.getMazeDistance(enemyBoderPoint, selfBorderPoint)
                   row.append( (-selfValue + enemyValue,-enemyValue) )
               matrix.append(row)
@@ -341,16 +338,9 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                         distance = self.getMazeDistance(pos,selfState.getPosition()) - 2
                         if distance <= 2:
                             # print('********into set forceGoPoint')
-                            # self.forceGoPoint = random.choice(self.selfBorder)
+                            self.forceGoPoint = random.choice(self.selfBorder)
                             # self.forceGoPoint = self.gameTheoryCalCurrentDefender(gameState)
-                            self.forceGoPoint = random.choice(
-                            [self.gameTheoryCalculation(gameState),
-                            self.gameTheoryCalCurrentDefender(gameState),
-                            random.choice(self.selfBorder),
-                            random.choice(self.selfBorder),
-                            random.choice(self.selfBorder),
-                            random.choice(self.selfBorder)
-                            ])
+                            # self.forceGoPoint = random.choice([self.gameTheoryCalculation(gameState),self.gameTheoryCalCurrentDefender(gameState)])
 
                             return self.heuristicSearch([self.forceGoPoint])
 
